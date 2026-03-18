@@ -2,175 +2,926 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Сканер штрих-кода</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Сканер штрих-кодов</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --tg-theme-bg-color: #ffffff;
+      --tg-theme-text-color: #000000;
+      --tg-theme-hint-color: #999999;
+      --tg-theme-button-color: #3390ec;
+      --tg-theme-button-text-color: #ffffff;
+      --tg-theme-secondary-bg-color: #f0f0f0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--tg-theme-bg-color, #ffffff);
-      color: var(--tg-theme-text-color, #000000);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      background-color: var(--tg-theme-bg-color);
+      color: var(--tg-theme-text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      width: 100%;
+    }
+
+    /* Header */
+    .header {
+      padding: 12px 16px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: var(--tg-theme-hint-color);
+      margin-top: 2px;
+    }
+
+    /* Scanner area */
+    .scanner-wrapper {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px;
-      min-height: 100vh;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background: #000;
     }
 
-    .icon { font-size: 64px; margin-bottom: 12px; }
-
-    h2 { font-size: 20px; margin-bottom: 8px; text-align: center; }
-
-    .hint {
-      font-size: 14px;
-      color: #888;
-      text-align: center;
-      margin-bottom: 24px;
-      line-height: 1.5;
-    }
-
-    /* Скрытый input */
-    #cameraInput { display: none; }
-
-    /* Большая кнопка открытия камеры */
-    .btn-camera {
+    #video-container {
+      position: relative;
       width: 100%;
-      max-width: 360px;
-      padding: 18px;
-      border: none;
-      border-radius: 14px;
-      font-size: 18px;
-      font-weight: 600;
-      cursor: pointer;
-      background: var(--tg-theme-button-color, #2481cc);
-      color: var(--tg-theme-button-text-color, #ffffff);
+      height: 100%;
+    }
+
+    #video-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Scan overlay */
+    .scan-overlay {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-    }
-    .btn-camera:active { opacity: 0.8; }
-
-    /* Превью сфотографированного изображения */
-    #preview-box {
-      display: none;
-      margin-top: 20px;
-      width: 100%;
-      max-width: 360px;
-    }
-    #preview-box .label {
-      font-size: 13px;
-      color: #888;
-      margin-bottom: 6px;
-    }
-    #preview-img {
-      width: 100%;
-      border-radius: 12px;
-      border: 2px solid var(--tg-theme-button-color, #2481cc);
+      pointer-events: none;
     }
 
-    /* Спиннер обработки */
-    #spinner {
-      display: none;
-      margin-top: 16px;
-      font-size: 14px;
-      color: #888;
-      text-align: center;
+    .scan-region-highlight {
+      position: absolute;
+      inset: 0;
+      background: 
+        linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.45) calc(50% - 130px), transparent calc(50% - 130px), transparent calc(50% + 130px), rgba(0,0,0,0.45) calc(50% + 130px), rgba(0,0,0,0.45) 100%);
+      mask-image: none;
     }
-    .spin {
-      display: inline-block;
-      animation: rotate 1s linear infinite;
-      font-size: 22px;
-    }
-    @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-    /* Результат */
-    #result-box {
-      display: none;
-      margin-top: 16px;
-      width: 100%;
-      max-width: 360px;
-      background: var(--tg-theme-secondary-bg-color, #f0f0f0);
-      border-radius: 12px;
+    .scan-frame {
+      width: 260px;
+      height: 260px;
+      position: relative;
+    }
+
+    /* Corners */
+    .corner {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+    }
+
+    .corner::before,
+    .corner::after {
+      content: '';
+      position: absolute;
+      background: var(--tg-theme-button-color);
+      border-radius: 2px;
+    }
+
+    .corner::before {
+      width: 28px;
+      height: 3px;
+    }
+
+    .corner::after {
+      width: 3px;
+      height: 28px;
+    }
+
+    .corner-tl { top: 0; left: 0; }
+    .corner-tl::before { top: 0; left: 0; }
+    .corner-tl::after { top: 0; left: 0; }
+
+    .corner-tr { top: 0; right: 0; }
+    .corner-tr::before { top: 0; right: 0; }
+    .corner-tr::after { top: 0; right: 0; }
+
+    .corner-bl { bottom: 0; left: 0; }
+    .corner-bl::before { bottom: 0; left: 0; }
+    .corner-bl::after { bottom: 0; left: 0; }
+
+    .corner-br { bottom: 0; right: 0; }
+    .corner-br::before { bottom: 0; right: 0; }
+    .corner-br::after { bottom: 0; right: 0; }
+
+    /* Scan line animation */
+    .scan-line {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--tg-theme-button-color), transparent);
+      opacity: 0.8;
+      animation: scanLine 2.2s ease-in-out infinite;
+      border-radius: 1px;
+    }
+
+    @keyframes scanLine {
+      0%, 100% { top: 6px; }
+      50% { top: calc(100% - 8px); }
+    }
+
+    /* Result panel */
+    .result-panel {
+      flex-shrink: 0;
       padding: 16px;
-      text-align: center;
+      background: var(--tg-theme-bg-color);
+      border-top: 1px solid var(--tg-theme-secondary-bg-color);
+      min-height: 52px;
     }
-    #result-box .label { font-size: 13px; color: #888; margin-bottom: 6px; }
-    #result-text { font-size: 22px; font-weight: bold; word-break: break-all; }
 
-    /* Алерты */
-    .alert {
-      width: 100%;
-      max-width: 360px;
-      padding: 12px 16px;
-      border-radius: 10px;
-      margin-top: 14px;
-      font-size: 14px;
-      text-align: center;
-      line-height: 1.5;
-    }
-    .alert-success { background: #d4edda; color: #155724; }
-    .alert-error   { background: #f8d7da; color: #721c24; }
-
-    /* Кнопки действий */
-    .btn-action {
+    .result-content {
       display: none;
-      width: 100%;
-      max-width: 360px;
-      padding: 14px;
-      margin-top: 10px;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      background: var(--tg-theme-button-color, #2481cc);
-      color: var(--tg-theme-button-text-color, #ffffff);
+      flex-direction: column;
+      gap: 12px;
     }
-    .btn-action:active  { opacity: 0.8; }
-    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .result-content.visible {
+      display: flex;
+    }
+
+    .result-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .result-format {
+      font-size: 11px;
+      color: var(--tg-theme-hint-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 500;
+    }
+
+    .result-value {
+      font-size: 22px;
+      font-weight: 700;
+      word-break: break-all;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 13px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn:active {
+      opacity: 0.7;
+    }
+
+    .btn-primary {
+      background: var(--tg-theme-button-color);
+      color: var(--tg-theme-button-text-color);
+    }
 
     .btn-secondary {
-      background: var(--tg-theme-secondary-bg-color, #f0f0f0);
-      color: var(--tg-theme-text-color, #000);
+      background: var(--tg-theme-secondary-bg-color);
+      color: var(--tg-theme-text-color);
+    }
+
+    /* Status messages */
+    .status-msg {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 32px 24px;
+      text-align: center;
+    }
+
+    .status-msg.visible {
+      display: flex;
+    }
+
+    .status-icon {
+      font-size: 48px;
+      line-height: 1;
+    }
+
+    .status-text {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.6);
+      line-height: 1.4;
+    }
+
+    .status-text a {
+      color: var(--tg-theme-button-color);
+      text-decoration: none;
+    }
+
+    /* Sent confirmation */
+    .sent-confirmation {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .sent-confirmation.visible {
+      display: flex;
+    }
+
+    .sent-check {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #34c759;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .sent-check svg {
+      width: 32px;
+      height: 32px;
+      stroke: #fff;
+      stroke-width: 3;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .sent-text {
+      font-size: 17px;
+      font-weight: 600;
+      margin-top: 4px;
+      color: #fff;
+    }
+
+    .sent-subtext {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0); }
+      100% { transform: scale(1); }
+    }
+
+    /* History */
+    .history-section {
+      display: none;
+      padding: 0 16px 12px;
+    }
+
+    .history-section.visible {
+      display: block;
+    }
+
+    .history-title {
+      font-size: 11px;
+      color: var(--tg-theme-hint-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .history-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--tg-theme-secondary-bg-color);
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .history-item:active {
+      opacity: 0.7;
+    }
+
+    .history-item-code {
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-item-format {
+      font-size: 11px;
+      color: var(--tg-theme-hint-color);
+      font-weight: 500;
+    }
+
+    /* Torch button */
+    .torch-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      -webkit-tap-highlight-color: transparent;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .torch-btn.visible {
+      display: flex;
+    }
+
+    .torch-btn.active {
+      background: rgba(255, 214, 10, 0.3);
+    }
+
+    .torch-btn svg {
+      width: 22px;
+      height: 22px;
+      stroke: #fff;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Scanning indicator */
+    .scanning-badge {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    .scanning-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #34c759;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Paused overlay */
+    .paused-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+
+    .paused-overlay.visible {
+      display: flex;
     }
   </style>
 </head>
 <body>
+  <div class="app-container">
+    <!-- Header -->
+    <div class="header">
+      <h1>Сканер</h1>
+      <p>Наведите камеру на штрих-код</p>
+    </div>
 
-  <div class="icon">📦</div>
-  <h2>Сканер штрих-кода</h2>
-  <p class="hint">Нажмите кнопку, сфотографируйте<br>штрих-код или QR-код</p>
+    <!-- Scanner area -->
+    <div class="scanner-wrapper">
+      <!-- Error / loading states -->
+      <div class="status-msg" id="status-loading">
+        <div class="status-icon">📷</div>
+        <div class="status-text">Подключение к камере...</div>
+      </div>
 
-  <!-- Скрытый input — открывает системную камеру -->
-  <input
-    type="file"
-    id="cameraInput"
-    accept="image/*"
-    capture="environment"
-    onchange="onPhotoTaken(this)"
-  >
+      <div class="status-msg" id="status-error">
+        <div class="status-icon">⚠️</div>
+        <div class="status-text" id="error-text">Нет доступа к камере</div>
+      </div>
 
-  <!-- Кнопка открытия камеры -->
-  <button class="btn-camera" onclick="openCamera()">
-    <span>📷</span> Открыть камеру
-  </button>
+      <!-- Video feed -->
+      <div id="video-container" style="display:none;">
+        <video id="video" autoplay playsinline muted></video>
+        
+        <div class="scanning-badge" id="scanning-badge">
+          <div class="scanning-dot"></div>
+          Сканирование
+        </div>
 
-  <!-- Превью фото -->
-  <div id="preview-box">
-    <div class="label">Фото:</div>
-    <img id="preview-img" src="" alt="preview">
+        <div class="scan-overlay">
+          <div class="scan-region-highlight"></div>
+          <div class="scan-frame">
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+            <div class="scan-line" id="scan-line"></div>
+          </div>
+        </div>
+
+        <div class="paused-overlay" id="paused-overlay"></div>
+
+        <canvas id="canvas" style="display:none;"></canvas>
+        
+        <button class="torch-btn" id="torch-btn" aria-label="Фонарик">
+          <svg viewBox="0 0 24 24">
+            <path d="M9 18h6M10 22h4M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Sent confirmation -->
+      <div class="sent-confirmation" id="sent-confirmation">
+        <div class="sent-check">
+          <svg viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="sent-text">Отправлено</div>
+        <div class="sent-subtext" id="sent-code-text"></div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="history-section" id="history-section">
+      <div class="history-title">Отправлено ранее</div>
+      <ul class="history-list" id="history-list"></ul>
+    </div>
+
+    <!-- Result panel -->
+    <div class="result-panel" id="result-panel">
+      <div class="result-content" id="result-content">
+        <div class="result-info">
+          <span class="result-format" id="result-format"></span>
+          <span class="result-value" id="result-value"></span>
+        </div>
+        <div class="result-actions">
+          <button class="btn btn-secondary" id="btn-rescan">Ещё</button>
+          <button class="btn btn-primary" id="btn-send">Отправить</button>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Спиннер -->
-  <div id="spinner">
-    <span class="spin">⏳</span> Распознаю код...
-  </div>
+  <!-- ZXing library -->
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  
+  <script>
+    (function() {
+      'use strict';
 
-  <!-- Результат -->
-  <div id="result-box">
-    <div class="label">Распознанный код:</div>
-    <div id="result-text"></div>
-  </div>
+      // ============================================================
+      // State
+      // ============================================================
+      let currentStream = null;
+      let currentTrack = null;
+      let torchOn = false;
+      let lastResult = null;
+      let lastFormat = null;
+      let scanning = false;
+      let history = [];
+      let codeReader = null;
+
+      // ============================================================
+      // DOM refs
+      // ============================================================
+      const videoEl = document.getElementById('video');
+      const videoContainer = document.getElementById('video-container');
+      const canvasEl = document.getElementById('canvas');
+      const statusLoading = document.getElementById('status-loading');
+      const statusError = document.getElementById('status-error');
+      const errorText = document.getElementById('error-text');
+      const resultContent = document.getElementById('result-content');
+      const resultFormat = document.getElementById('result-format');
+      const resultValue = document.getElementById('result-value');
+      const resultPanel = document.getElementById('result-panel');
+      const btnSend = document.getElementById('btn-send');
+      const btnRescan = document.getElementById('btn-rescan');
+      const torchBtn = document.getElementById('torch-btn');
+      const sentConfirmation = document.getElementById('sent-confirmation');
+      const sentCodeText = document.getElementById('sent-code-text');
+      const historySection = document.getElementById('history-section');
+      const historyList = document.getElementById('history-list');
+      const scanningBadge = document.getElementById('scanning-badge');
+      const scanLine = document.getElementById('scan-line');
+      const pausedOverlay = document.getElementById('paused-overlay');
+
+      // ============================================================
+      // Telegram WebApp
+      // ============================================================
+      const tg = window.Telegram && window.Telegram.WebApp;
+
+      function initTelegram() {
+        if (tg) {
+          tg.ready();
+          tg.expand();
+
+          // Apply Telegram theme colors
+          const root = document.documentElement;
+          if (tg.themeParams) {
+            const tp = tg.themeParams;
+            if (tp.bg_color) root.style.setProperty('--tg-theme-bg-color', tp.bg_color);
+            if (tp.text_color) root.style.setProperty('--tg-theme-text-color', tp.text_color);
+            if (tp.hint_color) root.style.setProperty('--tg-theme-hint-color', tp.hint_color);
+            if (tp.button_color) root.style.setProperty('--tg-theme-button-color', tp.button_color);
+            if (tp.button_text_color) root.style.setProperty('--tg-theme-button-text-color', tp.button_text_color);
+            if (tp.secondary_bg_color) root.style.setProperty('--tg-theme-secondary-bg-color', tp.secondary_bg_color);
+          }
+        }
+      }
+
+      function sendToBot(code, format) {
+        const data = JSON.stringify({ barcode: code, format: format });
+        
+        if (tg && tg.sendData) {
+          // sendData sends data to the bot and closes the WebApp
+          // But since we want to continue scanning, we show confirmation first
+          // Note: sendData WILL close the WebApp after sending
+          tg.sendData(data);
+        }
+
+        // Show confirmation (user sees this briefly before WebApp closes)
+        showSentConfirmation(code);
+      }
+
+      // ============================================================
+      // Format mapping
+      // ============================================================
+      const FORMAT_NAMES = {
+        0: 'AZTEC', 1: 'CODABAR', 2: 'CODE_39', 3: 'CODE_93',
+        4: 'CODE_128', 5: 'DATA_MATRIX', 6: 'EAN_8', 7: 'EAN_13',
+        8: 'ITF', 9: 'MAXICODE', 10: 'PDF_417', 11: 'QR_CODE',
+        12: 'RSS_14', 13: 'RSS_EXPANDED', 14: 'UPC_A', 15: 'UPC_E',
+        16: 'UPC_EAN_EXTENSION'
+      };
+
+      function getFormatName(format) {
+        if (typeof format === 'number') return FORMAT_NAMES[format] || 'UNKNOWN';
+        if (format && format.toString) {
+          const str = format.toString();
+          // ZXing format enum values
+          for (const [k, v] of Object.entries(FORMAT_NAMES)) {
+            if (str === k || str === v) return v;
+          }
+        }
+        return String(format);
+      }
+
+      // ============================================================
+      // Camera & Scanner
+      // ============================================================
+      async function startScanner() {
+        showState('loading');
+
+        try {
+          // Request camera access
+          // On HTTPS, the browser remembers the permission — no repeated prompts
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          });
+
+          currentStream = stream;
+          currentTrack = stream.getVideoTracks()[0];
+          videoEl.srcObject = stream;
+          
+          await new Promise(function(resolve) {
+            videoEl.onloadedmetadata = resolve;
+          });
+
+          // Check torch capability
+          checkTorch();
+
+          showState('scanning');
+
+          // Initialize ZXing with continuous decode from video device
+          initZxingScanner();
+
+        } catch (err) {
+          console.error('Camera error:', err);
+          handleCameraError(err);
+        }
+      }
+
+      function initZxingScanner() {
+        const hints = new Map();
+        const formats = [
+          ZXing.BarcodeFormat.QR_CODE,
+          ZXing.BarcodeFormat.EAN_13,
+          ZXing.BarcodeFormat.EAN_8,
+          ZXing.BarcodeFormat.CODE_128,
+          ZXing.BarcodeFormat.CODE_39,
+          ZXing.BarcodeFormat.UPC_A,
+          ZXing.BarcodeFormat.UPC_E
+        ];
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+        codeReader = new ZXing.BrowserMultiFormatReader(hints);
+        codeReader.timeBetweenDecodingAttempts = 200; // ms between scans
+        scanning = true;
+        startContinuousDecode();
+      }
+
+      function startContinuousDecode() {
+        if (!scanning || !currentStream) return;
+
+        // Use ZXing's built-in continuous decode from video element
+        codeReader.decodeFromVideoElementContinuously(videoEl, function(result, err) {
+          if (!scanning) return;
+
+          if (result && result.getText()) {
+            onCodeDetected(result.getText(), result.getBarcodeFormat());
+          }
+          // NotFoundException is normal — just means no code in current frame
+        });
+      }
+
+      function onCodeDetected(text, format) {
+        scanning = false;
+        // Stop continuous decode
+        if (codeReader) {
+          codeReader.stopContinuousDecode();
+        }
+
+        const formatName = getFormatName(format);
+        lastResult = text;
+        lastFormat = formatName;
+
+        // Haptic feedback
+        if (tg && tg.HapticFeedback) {
+          tg.HapticFeedback.notificationOccurred('success');
+        } else if (navigator.vibrate) {
+          navigator.vibrate(100);
+        }
+
+        // Show result
+        resultFormat.textContent = formatName;
+        resultValue.textContent = text;
+        showState('result');
+
+        // Add to history
+        addToHistory(text, formatName);
+      }
+
+      function resumeScanning() {
+        lastResult = null;
+        lastFormat = null;
+        scanning = true;
+        showState('scanning');
+        startContinuousDecode();
+      }
+
+      function handleCameraError(err) {
+        let msg = 'Не удалось подключить камеру.';
+
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          msg = 'Доступ к камере запрещён.<br>Разрешите доступ в настройках.';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          msg = 'Камера не найдена на устройстве.';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          msg = 'Камера занята другим приложением.';
+        } else if (err.name === 'OverconstrainedError') {
+          msg = 'Камера не поддерживает запрошенные параметры.';
+        }
+
+        errorText.innerHTML = msg;
+        showState('error');
+      }
+
+      // ============================================================
+      // Torch
+      // ============================================================
+      function checkTorch() {
+        if (currentTrack) {
+          try {
+            const capabilities = currentTrack.getCapabilities();
+            if (capabilities && capabilities.torch) {
+              torchBtn.classList.add('visible');
+            }
+          } catch (e) {
+            // getCapabilities may not be supported
+          }
+        }
+      }
+
+      async function toggleTorch() {
+        if (!currentTrack) return;
+        torchOn = !torchOn;
+        try {
+          await currentTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+          torchBtn.classList.toggle('active', torchOn);
+        } catch (e) {
+          torchOn = false;
+        }
+      }
+
+      // ============================================================
+      // History
+      // ============================================================
+      function addToHistory(code, format) {
+        if (history.length > 0 && history[0].code === code) return;
+        history.unshift({ code: code, format: format });
+        if (history.length > 5) history.pop();
+        renderHistory();
+      }
+
+      function renderHistory() {
+        if (history.length < 2) {
+          historySection.classList.remove('visible');
+          return;
+        }
+
+        historySection.classList.add('visible');
+        historyList.innerHTML = '';
+
+        // Show all except first (current)
+        for (var i = 1; i < history.length; i++) {
+          var item = history[i];
+          var li = document.createElement('li');
+          li.className = 'history-item';
+          li.innerHTML = 
+            '<span class="history-item-code">' + escapeHtml(item.code) + '</span>' +
+            '<span class="history-item-format">' + escapeHtml(item.format) + '</span>';
+          (function(code, format) {
+            li.addEventListener('click', function() {
+              lastResult = code;
+              lastFormat = format;
+              resultFormat.textContent = format;
+              resultValue.textContent = code;
+              showState('result');
+            });
+          })(item.code, item.format);
+          historyList.appendChild(li);
+        }
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // ============================================================
+      // UI States
+      // ============================================================
+      function showState(state) {
+        statusLoading.classList.remove('visible');
+        statusError.classList.remove('visible');
+        videoContainer.style.display = 'none';
+        sentConfirmation.classList.remove('visible');
+        resultContent.classList.remove('visible');
+        pausedOverlay.classList.remove('visible');
+        scanLine.style.display = '';
+        scanningBadge.style.display = '';
+
+        switch (state) {
+          case 'loading':
+            statusLoading.classList.add('visible');
+            break;
+
+          case 'scanning':
+            videoContainer.style.display = 'block';
+            break;
+
+          case 'result':
+            videoContainer.style.display = 'block';
+            resultContent.classList.add('visible');
+            pausedOverlay.classList.add('visible');
+            scanLine.style.display = 'none';
+            scanningBadge.style.display = 'none';
+            break;
+
+          case 'error':
+            statusError.classList.add('visible');
+            break;
+
+          case 'sent':
+            sentConfirmation.classList.add('visible');
+            break;
+        }
+      }
+
+      function showSentConfirmation(code) {
+        sentCodeText.textContent = code;
+        showState('sent');
+
+        // Auto-resume in 1.5s (in case sendData didn't close the WebApp)
+        setTimeout(function() {
+          resumeScanning();
+        }, 1500);
+      }
+
+      // ============================================================
+      // Events
+      // ============================================================
+      btnSend.addEventListener('click', function() {
+        if (lastResult) {
+          sendToBot(lastResult, lastFormat);
+        }
+      });
+
+      btnRescan.addEventListener('click', function() {
+        resumeScanning();
+      });
+
+      torchBtn.addEventListener('click', function() {
+        toggleTorch();
+      });
+
+      // ============================================================
+      // Init
+      // ============================================================
+      initTelegram();
+      startScanner();
+
+    })();
+  </script>
+</body>
+</html>
