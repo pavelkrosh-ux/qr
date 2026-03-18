@@ -1,0 +1,35 @@
+<html>
+<head>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script> <!-- одна из либ -->
+</head>
+<body>
+  <div id="reader" style="width:100%;"></div>
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // разворачиваем на весь экран
+
+    function onScanSuccess(decodedText, decodedResult) {
+      tg.sendData(decodedText); // отправляем код боту
+      tg.close();               // закрываем webapp
+    }
+
+    function onScanFailure(error) {
+      // можно логировать, но не спамить пользователю
+    }
+
+    const html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(devices => {
+      const cameraId = devices[0].id; // можно выбрать back camera
+      html5QrCode.start(
+        cameraId,
+        { fps: 10, qrbox: 250 },
+        onScanSuccess,
+        onScanFailure
+      );
+    }).catch(err => {
+      alert("Не удалось получить доступ к камере");
+    });
+  </script>
+</body>
+</html>
