@@ -4,12 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Сканер штрих-кода</title>
-
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Библиотека html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -20,27 +16,81 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 16px;
+      padding: 24px 16px;
       min-height: 100vh;
     }
 
-    h2 {
-      margin-bottom: 12px;
-      font-size: 18px;
+    .icon { font-size: 64px; margin-bottom: 12px; }
+
+    h2 { font-size: 20px; margin-bottom: 8px; text-align: center; }
+
+    .hint {
+      font-size: 14px;
+      color: #888;
       text-align: center;
+      margin-bottom: 24px;
+      line-height: 1.5;
     }
 
-    #reader {
+    /* Скрытый input */
+    #cameraInput { display: none; }
+
+    /* Большая кнопка открытия камеры */
+    .btn-camera {
       width: 100%;
       max-width: 360px;
+      padding: 18px;
+      border: none;
+      border-radius: 14px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #ffffff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .btn-camera:active { opacity: 0.8; }
+
+    /* Превью сфотографированного изображения */
+    #preview-box {
+      display: none;
+      margin-top: 20px;
+      width: 100%;
+      max-width: 360px;
+    }
+    #preview-box .label {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+    #preview-img {
+      width: 100%;
       border-radius: 12px;
-      overflow: hidden;
       border: 2px solid var(--tg-theme-button-color, #2481cc);
     }
 
+    /* Спиннер обработки */
+    #spinner {
+      display: none;
+      margin-top: 16px;
+      font-size: 14px;
+      color: #888;
+      text-align: center;
+    }
+    .spin {
+      display: inline-block;
+      animation: rotate 1s linear infinite;
+      font-size: 22px;
+    }
+    @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* Результат */
     #result-box {
       display: none;
-      margin-top: 20px;
+      margin-top: 16px;
       width: 100%;
       max-width: 360px;
       background: var(--tg-theme-secondary-bg-color, #f0f0f0);
@@ -48,25 +98,30 @@
       padding: 16px;
       text-align: center;
     }
+    #result-box .label { font-size: 13px; color: #888; margin-bottom: 6px; }
+    #result-text { font-size: 22px; font-weight: bold; word-break: break-all; }
 
-    #result-box .label {
-      font-size: 13px;
-      color: #888;
-      margin-bottom: 6px;
+    /* Алерты */
+    .alert {
+      width: 100%;
+      max-width: 360px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-top: 14px;
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.5;
     }
+    .alert-success { background: #d4edda; color: #155724; }
+    .alert-error   { background: #f8d7da; color: #721c24; }
 
-    #result-text {
-      font-size: 20px;
-      font-weight: bold;
-      word-break: break-all;
-      margin-bottom: 12px;
-    }
-
-    button {
+    /* Кнопки действий */
+    .btn-action {
+      display: none;
       width: 100%;
       max-width: 360px;
       padding: 14px;
-      margin-top: 12px;
+      margin-top: 10px;
       border: none;
       border-radius: 10px;
       font-size: 16px;
@@ -74,116 +129,48 @@
       background: var(--tg-theme-button-color, #2481cc);
       color: var(--tg-theme-button-text-color, #ffffff);
     }
+    .btn-action:active  { opacity: 0.8; }
+    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    button:active { opacity: 0.8; }
-
-    #btn-rescan { display: none; }
-
-    #status {
-      margin-top: 12px;
-      font-size: 13px;
-      color: #888;
+    .btn-secondary {
+      background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+      color: var(--tg-theme-text-color, #000);
     }
   </style>
 </head>
 <body>
 
+  <div class="icon">📦</div>
   <h2>Сканер штрих-кода</h2>
+  <p class="hint">Нажмите кнопку, сфотографируйте<br>штрих-код или QR-код</p>
 
-  <div id="reader"></div>
-  <div id="status">Наведите камеру на штрих-код или QR-код</div>
+  <!-- Скрытый input — открывает системную камеру -->
+  <input
+    type="file"
+    id="cameraInput"
+    accept="image/*"
+    capture="environment"
+    onchange="onPhotoTaken(this)"
+  >
 
+  <!-- Кнопка открытия камеры -->
+  <button class="btn-camera" onclick="openCamera()">
+    <span>📷</span> Открыть камеру
+  </button>
+
+  <!-- Превью фото -->
+  <div id="preview-box">
+    <div class="label">Фото:</div>
+    <img id="preview-img" src="" alt="preview">
+  </div>
+
+  <!-- Спиннер -->
+  <div id="spinner">
+    <span class="spin">⏳</span> Распознаю код...
+  </div>
+
+  <!-- Результат -->
   <div id="result-box">
     <div class="label">Распознанный код:</div>
     <div id="result-text"></div>
   </div>
-
-  <button id="btn-send" style="display:none" onclick="sendToBot()">
-    ✅ Отправить боту
-  </button>
-  <button id="btn-rescan" onclick="rescan()">
-    🔄 Сканировать снова
-  </button>
-
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-    tg.ready();
-
-    let scannedCode = null;
-    let scanner = null;
-
-    function startScanner() {
-      scanner = new Html5Qrcode("reader");
-
-      Html5Qrcode.getCameras().then(devices => {
-        if (!devices || devices.length === 0) {
-          document.getElementById("status").textContent = "Камера не найдена";
-          return;
-        }
-
-        // Предпочитаем заднюю камеру
-        const camera = devices.find(d =>
-          d.label.toLowerCase().includes("back") ||
-          d.label.toLowerCase().includes("rear") ||
-          d.label.toLowerCase().includes("environment")
-        ) || devices[devices.length - 1];
-
-        scanner.start(
-          camera.id,
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          onScanSuccess,
-          onScanError
-        );
-
-        document.getElementById("status").textContent = "Камера активна...";
-      }).catch(err => {
-        document.getElementById("status").textContent =
-          "Ошибка доступа к камере: " + err;
-      });
-    }
-
-    function onScanSuccess(decodedText) {
-      // Останавливаем сканер после первого успешного результата
-      scanner.stop().then(() => {
-        scannedCode = decodedText;
-
-        document.getElementById("status").textContent = "";
-        document.getElementById("result-text").textContent = decodedText;
-        document.getElementById("result-box").style.display = "block";
-        document.getElementById("btn-send").style.display = "block";
-        document.getElementById("btn-rescan").style.display = "block";
-      });
-    }
-
-    function onScanError(error) {
-      // Игнорируем — это нормально, пока не найден код
-    }
-
-    function sendToBot() {
-      if (!scannedCode) return;
-
-      // Если открыто в Telegram — отправляем через sendData
-      if (tg.initData) {
-        tg.sendData(JSON.stringify({ barcode: scannedCode }));
-      } else {
-        // Если открываете в обычном браузере для теста — просто алерт
-        alert("Код для бота: " + scannedCode);
-      }
-    }
-
-    function rescan() {
-      scannedCode = null;
-      document.getElementById("result-box").style.display = "none";
-      document.getElementById("btn-send").style.display = "none";
-      document.getElementById("btn-rescan").style.display = "none";
-      document.getElementById("status").textContent = "Наведите камеру на штрих-код или QR-код";
-      startScanner();
-    }
-
-    // Запускаем при загрузке
-    startScanner();
-  </script>
-
-</body>
-</html>
