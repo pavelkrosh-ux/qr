@@ -352,7 +352,7 @@
   }
 
   function sendToBot(code, fmt) {
-    var data = JSON.stringify({ barcode: code, format: fmt });
+    var data = JSON.stringify({ barcode: code, format: fmt, SetTheBuildTime: true });
     if (tg && tg.sendData) tg.sendData(data);
     showSent(code);
   }
